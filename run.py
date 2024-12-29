@@ -1,79 +1,56 @@
 import subprocess
 import os
+from datetime import datetime, timedelta
 
-def remove_commits_from_head():
-    commit_hash = input("Enter the commit hash (e.g., HEAD~2 for two commits ago): ").strip()
+def check_git_repo(repo_path):
+    try:
+        subprocess.check_call(["git", "-C", repo_path, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError:
+        print(f"The directory {repo_path} is not a valid Git repository. Please provide a valid Git repository path.")
+        exit(1)
 
-    if not commit_hash:
-        return
+def check_remote(repo_path):
+    try:
+        remote_url = subprocess.check_output(["git", "-C", repo_path, "remote", "get-url", "origin"]).strip().decode('utf-8')
+        print(f"Remote repository URL: {remote_url}")
+    except subprocess.CalledProcessError:
+        print(f"No remote repository found in {repo_path}. Please set up a remote repository first.")
+        exit(1)
+
+def create_custom_streak(repo_path):
+    start_date = input("Enter the starting date (YYYY-MM-DD): ").strip()
+    end_date = input("Enter the ending date (YYYY-MM-DD): ").strip()
+    commits_per_day = input("Enter the number of commits per day: ").strip()
 
     try:
-        os.system(f"git reset --hard {commit_hash}")
-        os.system("git push origin main --force")
-        print(f"Successfully removed all commits after {commit_hash}. Repository reset to the specified commit.")
-        
-    except Exception as e:
-        print(f"Error: {e}")
+        start_date = datetime.strptime(start_date, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date, "%Y-%m-%d")
+        commits_per_day = int(commits_per_day)
 
-def main():
-    while True:
-        print("\nChoose an option:")
-        print("1. Reset all commits and start fresh (delete all history).")
-        print("2. Remove script-generated commits and retain your legitimate streak.")
-        print("3. Create a custom streak of commits.")
-        print("4. Remove commits from a specific HEAD.")
-        print("5. Exit.")
-        
-        choice = input("Enter your choice (1/2/3/4/5): ").strip()
-        
-        if choice == "1":
-            reset_all_commits()
-        elif choice == "2":
-            remove_script_commits()
-        elif choice == "3":
-            create_custom_streak()
-        elif choice == "4":
-            remove_commits_from_head()
-        elif choice == "5":
-            break
-        else:
-            print("Invalid choice. Please try again.")
-
-def reset_all_commits():
-    os.system("git reset --hard --root")
-    os.system("git push origin --force")
-
-def remove_script_commits():
-    first_commit_hash = subprocess.check_output(
-        ["git", "log", "--reverse", "--pretty=format:'%H'"], stderr=subprocess.STDOUT
-    ).decode('utf-8').strip().split("\n")[0].replace("'", "")
-    
-    if not first_commit_hash:
-        return
-
-    os.system(f"git reset --hard {first_commit_hash}")
-    os.system("git push origin --force")
-
-def create_custom_streak():
-    days = input("Enter the number of days (e.g., 5 for 5 days): ").strip()
-    commit_pattern = input("Enter the commit pattern (e.g., 5,3,4,8,4): ").strip()
-
-    try:
-        days = int(days)
-        pattern = [int(x) for x in commit_pattern.split(",")]
-
-        if len(pattern) != days:
+        if commits_per_day <= 0 or start_date > end_date:
+            print("Invalid input. Please check the dates and the number of commits.")
             return
 
-        for i in range(days):
-            for _ in range(pattern[i]):
-                os.system(f"git commit --allow-empty -m 'Automated commit for day {i + 1}'")
-            os.system("git push origin main --force")
+        current_date = start_date
+        while current_date <= end_date:
+            for _ in range(commits_per_day):
+                commit_message = f"Update code {current_date.strftime('%Y-%m-%d')}"
+                os.system(f'git -C "{repo_path}" commit --allow-empty -m "{commit_message}"')
+            os.system(f'git -C "{repo_path}" push origin main --force')
+            current_date += timedelta(days=1)
 
         print("Custom streak created.")
 
     except ValueError:
-        pass
+        print("Invalid input. Please enter valid dates and a positive integer for commits per day.")
 
 if __name__ == "__main__":
-    main()
+    repo_path = input("Enter the path to your Git repository: ").strip()
+
+    if not os.path.isdir(repo_path):
+        print("The provided path is not a valid directory. Please provide a valid path.")
+        exit(1)
+
+    check_git_repo(repo_path)
+    check_remote(repo_path)
+    create_custom_streak(repo_path)
